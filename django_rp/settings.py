@@ -219,13 +219,14 @@ OIDC_DEFAULT_BEHAVIOUR = {
 OIDC_PROVIDERS = {
     # Test OP - webfinger supported on non-standard URL, no client self registration.
     "Azure Active Directory": {
-        "srv_discovery_url": "https://sts.windows.net/9019caa7-f3ba-4261-8b4f-9162bdbe8cd1/",
+        "srv_discovery_url": "https://sts.windows.net/84e34b3d-2101-4417-bc7a-6763baa47916/",
         "behaviour": OIDC_DEFAULT_BEHAVIOUR,
         "client_registration": {
-            "client_id": "0d21f6d8-796f-4879-a2e1-314ddfcfb737",
-            "client_secret": "6hzvhNTsHPvTiUH/GUHVsFDt8b0BajZNox/iFI7iVJ8=",
+            'client_id': "d6f9ad90-c6d1-4dfc-a7db-9e4ef4b524b2",
+            "client_secret": "fGtyewgddjlim7zWtww7gypI/I/IwyylKBzvH/QVTDY=",
             "redirect_uris": ["http://localhost:8000/openid/callback/login/"],
             "post_logout_redirect_uris": ["http://localhost:8000/openid/callback/logout/"],
+            "token_endpoint_auth_method": "client_secret_post"
         }
     },
     # # No webfinger support, but OP information lookup and client registration

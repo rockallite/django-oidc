@@ -2,12 +2,12 @@
 
 from django.conf import settings
 from oic.exception import MissingAttribute
-from oic import oic
-from oic.oauth2 import rndstr, ErrorResponse
+from oic import oic, rndstr
+from oic.oauth2 import ErrorResponse
+from oic.oic import RegistrationResponse, AuthorizationRequest
 from oic.oic import ProviderConfigurationResponse, AuthorizationResponse
-from oic.oic import RegistrationResponse
-from oic.oic import AuthorizationRequest
 from oic.utils.authn.client import CLIENT_AUTHN_METHOD
+from future.types.newstr import newstr
 
 __author__ = 'roland'
 
@@ -54,10 +54,13 @@ class Client(oic.Client):
                                                     method="GET",
                                                     request_args=request_args)
 
-        logger.debug("body: %s" % body)
-        logger.info("URL: %s" % url)
-        logger.debug("ht_args: %s" % ht_args)
+        logger.debug("body: %s", body)
+        logger.info("URL: %s", url)
+        logger.debug("ht_args: %s", ht_args)
 
+        if isinstance(url, newstr):
+            p3_bytes = bytes(url)
+            url = p3_bytes.decode('utf-8', 'surrogateescape')
         resp = HttpResponseRedirect(url)
         if ht_args:
             for key, value in ht_args.items():

@@ -48,7 +48,7 @@ The configuration above is enough to use OIDC providers (OP) that support discov
 In addition, you may want to use a specific OpenID Connect provider that is not auto-discoverable. This is done
 by adding items to the OIDC_PROVIDERS dictionary. See full documentation for parameter names.
 
-For example, an Azure AD OP would be::
+For example, an Azure AD OP (V1 endpoint, as V2 does not support code flow yet) would be::
 
     OIDC_PROVIDERS = {
         "Azure Active Directory": {
@@ -59,6 +59,7 @@ For example, an Azure AD OP would be::
                 "client_secret": "your_client_secret",
                 "redirect_uris": ["http://localhost:8000/openid/callback/login/"],
                 "post_logout_redirect_uris": ["http://localhost:8000/openid/callback/logout/"],
+                "token_endpoint_auth_method": "client_secret_post",
             }
         }
     }
