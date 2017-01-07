@@ -40,14 +40,14 @@ setup(
     include_package_data=True,
     install_requires=[
         'django>=1.8',
-        'oic>=0.7.6',
+        'oic>=0.9.4,<=0.10',
     ],
     license="Apache Software License",
     zip_safe=False,
     keywords='repo_name',
     classifiers=[
         'Environment :: Web Environment',
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Framework :: Django',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Apache Software License',
