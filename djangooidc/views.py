@@ -8,10 +8,10 @@ from django.contrib.auth import logout as auth_logout, authenticate, login
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import login as auth_login_view, logout as auth_logout_view
 from django.shortcuts import redirect, render_to_response, resolve_url
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django import forms
 from django.template import RequestContext
-from oic.oic.message import IdToken
+from oic.oic.message import EndSessionRequest
 
 from djangooidc.oidc import OIDCClients, OIDCError
 
@@ -133,21 +133,18 @@ def logout(request, next_page=None):
         pass
 
     # Redirect client to the OP logout page
-    try:
-        request_args = None
-        if 'id_token' in request.session.keys():
-            request_args = {'id_token': IdToken(**request.session['id_token'])}
-        res = client.do_end_session_request(state=request.session["state"],
-                                            extra_args=extra_args, request_args=request_args)
-        resp = HttpResponse(content_type=res.headers["content-type"], status=res.status_code, content=res._content)
-        for key, val in res.headers.items():
-            resp[key] = val
-        return resp
-    finally:
-        # Always remove Django session stuff - even if not logged out from OP. Don't wait for the callback as it may never come.
-        auth_logout(request)
-        if next_page:
-            request.session['next'] = next_page
+    request_args = None
+    if '_id_token' in request.session.keys():
+        request_args = {'id_token_hint': request.session['_id_token']}
+    url, body, ht_args, csi = client.request_info(request=EndSessionRequest,
+                                                  method='GET',
+                                                  request_args=request_args,
+                                                  extra_args=extra_args,
+                                                  state=request.session["state"])
+    auth_logout(request)
+    if next_page:
+        request.session['next'] = next_page
+    return HttpResponseRedirect(bytes(url))
 
 
 def logout_cb(request):

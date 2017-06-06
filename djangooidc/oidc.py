@@ -115,6 +115,7 @@ class Client(oic.Client):
             if isinstance(atresp, ErrorResponse):
                 raise OIDCError("Invalid response %s." % atresp["error"])
             session['id_token'] = atresp['id_token']._dict
+            session['_id_token'] = atresp['_id_token']
             session['access_token'] = atresp['access_token']
             try:
                 session['refresh_token'] = atresp['refresh_token']
