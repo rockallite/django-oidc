@@ -16,16 +16,13 @@ class OpenIdConnectBackend(ModelBackend):
     In all other cases, None is returned.
     """
 
-    def authenticate(self, **kwargs):
-        user = None
-        if not kwargs or 'sub' not in kwargs.keys():
-            return user
-
-        UserModel = get_user_model()
+    def _get_username(self, **kwargs):
         username = self.clean_username(kwargs['sub'])
         if 'upn' in kwargs.keys():
             username = kwargs['upn']
+        return username
 
+    def _get_openid_data(self, **kwargs):
         # Some OP may actually choose to withhold some information, so we must test if it is present
         openid_data = {'last_login': datetime.datetime.now()}
         if 'first_name' in kwargs.keys():
@@ -40,13 +37,23 @@ class OpenIdConnectBackend(ModelBackend):
             openid_data['last_name'] = kwargs['last_name']
         if 'email' in kwargs.keys():
             openid_data['email'] = kwargs['email']
+        return openid_data        
+
+    def authenticate(self, **kwargs):
+        user = None
+        if not kwargs or 'sub' not in kwargs.keys():
+            return user
+
+        UserModel = get_user_model()
+        username = self._get_username(**kwargs)
+        openid_data = self._get_openid_data(**kwargs)
 
         # Note that this could be accomplished in one try-except clause, but
         # instead we use get_or_create when creating unknown users since it has
         # built-in safeguards for multiple threads.
         if getattr(settings, 'OIDC_CREATE_UNKNOWN_USER', True):
             args = {UserModel.USERNAME_FIELD: username, 'defaults': openid_data, }
-            user, created = UserModel.objects.update_or_create(**args)
+            user, created = UserModel.objects.get_or_create(**args)
             if created:
                 user = self.configure_user(user)
         else:
