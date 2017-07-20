@@ -210,7 +210,7 @@ def logout(request, next_page=None):
     auth_logout(request)
     if next_page:
         request.session['next'] = next_page
-    return HttpResponseRedirect(url)
+    return HttpResponseRedirect(bytes(url))
 
 
 def logout_cb(request):
