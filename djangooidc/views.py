@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib.auth import logout as auth_logout, authenticate, login
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import login as auth_login_view, logout as auth_logout_view
-from django.shortcuts import redirect, render_to_response, resolve_url
+from django.shortcuts import render_to_response, resolve_url
 from django.http import HttpResponse, HttpResponseRedirect
 from django import forms
 from django.template import RequestContext
@@ -98,7 +98,7 @@ def authz_cb(request):
             login(request, user)
             # Clear next page in session
             next_page = request.session.pop("next", "/")
-            return redirect(next_page)
+            return HttpResponseRedirect(next_page)
         else:
             raise Exception('this login is not valid in this application')
     except OIDCError as e:
@@ -111,6 +111,10 @@ def logout(request, next_page=None):
 
     client = CLIENTS[request.session["op"]]
 
+    # Only resolve URL for internal code usage
+    if next_page is not None:
+        next_page = resolve_url(next_page)
+
     # User is by default NOT redirected to the app - it stays on an OP page after logout.
     # Here we determine if a redirection to the app was asked for and is possible.
     if next_page is None and "next" in request.GET.keys():
@@ -122,16 +126,15 @@ def logout(request, next_page=None):
             client.registration_response["post_logout_redirect_uris"]) > 0:
         if next_page is not None:
             # First attempt a direct redirection from OP to next_page
-            next_page_url = resolve_url(next_page)
-            urls = [url for url in client.registration_response["post_logout_redirect_uris"] if next_page_url in url]
+            urls = [url for url in client.registration_response["post_logout_redirect_uris"] if next_page in url]
             if len(urls) > 0:
                 extra_args["post_logout_redirect_uri"] = urls[0]
             else:
                 # It is not possible to directly redirect from the OP to the page that was asked for.
                 # We will try to use the redirection point - if the redirection point URL is registered that is.
-                next_page_url = resolve_url('openid_logout_cb')
+                next_page = resolve_url('openid_logout_cb')
                 urls = [url for url in client.registration_response["post_logout_redirect_uris"] if
-                        next_page_url in url]
+                        next_page in url]
                 if len(urls) > 0:
                     extra_args["post_logout_redirect_uri"] = urls[0]
                 else:
@@ -154,10 +157,10 @@ def logout(request, next_page=None):
     auth_logout(request)
     if next_page:
         request.session['next'] = next_page
-    return HttpResponseRedirect(bytes(url))
+    return HttpResponseRedirect(url)
 
 
 def logout_cb(request):
     """ Simple redirection view: after logout, just redirect to a parameter value inside the session """
     next_page = request.session.pop("next", "/")
-    return redirect(next_page)
+    return HttpResponseRedirect(next_page)
