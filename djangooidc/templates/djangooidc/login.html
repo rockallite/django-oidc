@@ -3,6 +3,7 @@
 {% block content %}
 <div>
     <div>Please log in with one of the following methods:</div>
+    {% if internal %}
     <div class="ooidc-block">
         <div class="ooidc-block-title">Application login</div>
         <form method="post">
@@ -12,6 +13,7 @@
             <input name="internal_login" type="submit">
         </form>
     </div>
+    {% endif %}
 
     {% if op_list %}
     <div class="ooidc-block">

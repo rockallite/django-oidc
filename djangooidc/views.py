@@ -34,44 +34,52 @@ def openid(request, op_name=None):
         dyn = True
 
     try:
+        intl = settings.OIDC_ALLOW_INTERNAL_LOGIN or False
+    except AttributeError:
+        intl = True
+
+    try:
         template_name = settings.OIDC_LOGIN_TEMPLATE
     except AttributeError:
         template_name = 'djangooidc/login.html'
 
-    # Internal login?
-    if request.method == 'POST' and "internal_login" in request.POST:
-        ilform = AuthenticationForm(request.POST)
-        return auth_login_view(request)
+    ilform = None
+    form = None
+    if request.method == 'POST':
+        # Internal login?
+        if intl and "internal_login" in request.POST:
+            return auth_login_view(request)
+        if dyn:
+            form = DynamicProvider(request.POST)
+            if form.is_valid():
+                try:
+                    client = CLIENTS.dynamic_client(form.cleaned_data["hint"])
+                    request.session["op"] = client.provider_info["issuer"]
+                except Exception, e:
+                    logger.exception("could not create OIDC client")
+                    return render_to_response("djangooidc/error.html", {"error": e})
     else:
-        ilform = AuthenticationForm()
-
-    # Try to find an OP client either from the form or from the op_name URL argument
-    if request.method == 'GET' and op_name is not None:
-        client = CLIENTS[op_name]
-        request.session["op"] = op_name
-
-    if request.method == 'POST' and dyn:
-        form = DynamicProvider(request.POST)
-        if form.is_valid():
-            try:
-                client = CLIENTS.dynamic_client(form.cleaned_data["hint"])
-                request.session["op"] = client.provider_info["issuer"]
-            except Exception, e:
-                logger.exception("could not create OOID client")
-                return render_to_response("djangooidc/error.html", {"error": e})
-    else:
-        form = DynamicProvider()
+        if intl:
+            ilform = AuthenticationForm()
+        if dyn:
+            form = DynamicProvider()
+        # Try to find an OP client either from the form or from the op_name URL argument
+        if op_name is not None:
+            client = CLIENTS[op_name]
+            request.session["op"] = op_name
 
     # If we were able to determine the OP client, just redirect to it with an authentication request
     if client:
         try:
             return client.create_authn_request(request.session)
         except Exception, e:
+            logger.exception("could not create authentication request from OIDC client")
             return render_to_response("djangooidc/error.html", {"error": e})
 
     # Otherwise just render the list+form.
     return render_to_response(template_name,
-                              {"op_list": [i for i in settings.OIDC_PROVIDERS.keys() if i], 'dynamic': dyn,
+                              {"op_list": [i for i in settings.OIDC_PROVIDERS.keys() if i],
+                               'dynamic': dyn, 'internal': intl,
                                'form': form, 'ilform': ilform, "next": request.session["next"]},
                               context_instance=RequestContext(request))
 
