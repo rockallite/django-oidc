@@ -83,14 +83,14 @@ class Client(oic.Client):
             if authresp["error"] == "login_required":
                 return self.create_authn_request(session)
             else:
-                return OIDCError("Access denied")
+                raise OIDCError("Access denied")
 
         if session["state"] != authresp["state"]:
-            return OIDCError("Received state not the same as expected.")
+            raise OIDCError("Received state not the same as expected.")
 
         try:
             if authresp["id_token"] != session["nonce"]:
-                return OIDCError("Received nonce not the same as expected.")
+                raise OIDCError("Received nonce not the same as expected.")
             self.id_token[authresp["state"]] = authresp["id_token"]
         except KeyError:
             pass
