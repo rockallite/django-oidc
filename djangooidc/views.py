@@ -88,7 +88,9 @@ def authz_cb(request):
         user = authenticate(**userinfo)
         if user:
             login(request, user)
-            return redirect(request.session["next"])
+            # Clear next page in session
+            next_page = request.session.pop("next", "/")
+            return redirect(next_page)
         else:
             raise Exception('this login is not valid in this application')
     except OIDCError as e:
