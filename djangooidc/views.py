@@ -8,7 +8,7 @@ from django.contrib.auth import logout as auth_logout, authenticate, login
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import login as auth_login_view, logout as auth_logout_view
 from django.shortcuts import render_to_response, resolve_url
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect, Http404
 from django import forms
 from django.template import RequestContext
 from oic.oic.message import EndSessionRequest
@@ -65,7 +65,10 @@ def openid(request, op_name=None):
             form = DynamicProvider()
         # Try to find an OP client either from the form or from the op_name URL argument
         if op_name is not None:
-            client = CLIENTS[op_name]
+            try:
+                client = CLIENTS[op_name]
+            except KeyError:
+                Http404('OIDC client not found')
             request.session["op"] = op_name
 
     # If we were able to determine the OP client, just redirect to it with an authentication request

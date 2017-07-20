@@ -252,14 +252,11 @@ class OIDCClients(object):
 
     def __getitem__(self, item):
         """
-        Given a service or user identifier return a suitable client
+        Given a service return a corresponding client
         :param item:
         :return:
         """
-        try:
-            return self.client[item]
-        except KeyError:
-            return self.dynamic_client(item)
+        return self.client[item]
 
     def keys(self):
         return self.client.keys()
