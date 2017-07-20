@@ -31,12 +31,12 @@ def openid(request, op_name=None):
     try:
         dyn = settings.OIDC_ALLOW_DYNAMIC_OP or False
     except AttributeError:
-        dyn = True
+        dyn = False
 
     try:
         intl = settings.OIDC_ALLOW_INTERNAL_LOGIN or False
     except AttributeError:
-        intl = True
+        intl = False
 
     try:
         template_name = settings.OIDC_LOGIN_TEMPLATE
