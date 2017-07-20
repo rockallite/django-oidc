@@ -52,12 +52,14 @@ def openid(request, op_name=None):
         if dyn:
             form = DynamicProvider(request.POST)
             if form.is_valid():
+                hint = form.cleaned_data["hint"]
                 try:
-                    client = CLIENTS.dynamic_client(form.cleaned_data["hint"])
-                    request.session["op"] = client.provider_info["issuer"]
+                    client = CLIENTS.dynamic_client(hint)
+                    op_name = request.session["op"] = client.provider_info["issuer"]
                 except Exception, e:
-                    logger.exception("could not create OIDC client")
-                    return render_to_response("djangooidc/error.html", {"error": e})
+                    logger.exception("could not create dynamic OIDC client, hint: %r", hint)
+                    return render_to_response("djangooidc/error.html",
+                                              {"error": e, "debug": settings.DEBUG})
     else:
         if intl:
             ilform = AuthenticationForm()
@@ -77,7 +79,8 @@ def openid(request, op_name=None):
             return client.create_authn_request(request.session)
         except Exception, e:
             logger.exception("could not create authentication request from OIDC client")
-            return render_to_response("djangooidc/error.html", {"error": e})
+            return render_to_response("djangooidc/error.html",
+                                      {"error": e, "debug": settings.DEBUG, "op_name": op_name})
 
     # Otherwise just render the list+form.
     return render_to_response(template_name,
@@ -89,7 +92,8 @@ def openid(request, op_name=None):
 
 # Step 4: analyze the token returned by the OP
 def authz_cb(request):
-    client = CLIENTS[request.session["op"]]
+    op_name = request.session["op"]
+    client = CLIENTS[op_name]
     query = None
 
     try:
@@ -105,7 +109,8 @@ def authz_cb(request):
         else:
             raise Exception('this login is not valid in this application')
     except OIDCError as e:
-        return render_to_response("djangooidc/error.html", {"error": e, "callback": query})
+        return render_to_response("djangooidc/error.html",
+                                  {"error": e, "callback": query, "debug": settings.DEBUG, "op_name": op_name})
 
 
 def logout(request, next_page=None):

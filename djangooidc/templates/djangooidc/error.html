@@ -6,8 +6,9 @@
     <div>
         <div>OpenID Connect authentication has failed</div>
         <div>
+            {% if debug %}
             <div><span>Error message is: </span>{{ error }}</div>
-            {% if callback %}
+                {% if callback %}
                 <div>Query content was:</div>
                 <div>
                     <table>
@@ -27,6 +28,14 @@
                         </tbody>
                     </table>
                 </div>
+                {% endif %}
+            <div>You're seeing this error because you have DEBUG = True in your Django settings file. Change that to False, and Django will display a user-friendly page.</div>
+            {% else %}
+                {% if op_name %}
+            <div>You may want to <a href="{% url 'openid_with_op_name' op_name=op_name %}">try again</a>, or get help from the administrator.</div>
+                {% else %}
+            <div>You may want to get help from the administrator.</div>
+                {% endif %}
             {% endif %}
         </div>
     </div>
