@@ -30,7 +30,7 @@ def openid(request, op_name=None):
     request.session["next"] = request.GET["next"] if "next" in request.GET.keys() else "/"
     try:
         dyn = settings.OIDC_ALLOW_DYNAMIC_OP or False
-    except:
+    except AttributeError:
         dyn = True
 
     try:
