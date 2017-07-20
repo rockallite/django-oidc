@@ -56,6 +56,7 @@ def openid(request, op_name=None):
                 try:
                     client = CLIENTS.dynamic_client(hint)
                     op_name = request.session["op"] = client.provider_info["issuer"]
+                    request.session["dyn_op_hint"] = hint
                 except Exception, e:
                     logger.exception("could not create dynamic OIDC client, hint: %r", hint)
                     return render_to_response("djangooidc/error.html",
@@ -90,10 +91,45 @@ def openid(request, op_name=None):
                               context_instance=RequestContext(request))
 
 
+class OIDCClientNotFound(Exception):
+    pass
+
+
+def get_proper_client(op_name):
+    try:
+        # A static OIDC client defined in settings.OIDC_PROVIDERS or
+        # a dynamic client registered in the global OIDCClients instance
+        # of the current process
+        client = CLIENTS[op_name]
+    except KeyError:
+        if "dyn_op_hint" not in request.session:
+            # Not a dynamic OIDC client
+            logger.error('OIDC client not found')
+            raise OIDCClientNotFound('OIDC client not found')
+        # In a multi-processing deployment, a dynamic OIDC client may not be
+        # registered in the current process. Get the hint and create it.
+        hint = request.session["dyn_op_hint"]
+        try:
+            client = CLIENTS.dynamic_client(hint)
+        except Exception, e:
+            logger.exception("could not create dynamic OIDC client, hint: %r", hint)
+            raise
+    return client
+
+
 # Step 4: analyze the token returned by the OP
 def authz_cb(request):
     op_name = request.session["op"]
-    client = CLIENTS[op_name]
+
+    try:
+        client = get_proper_client(op_name)
+    except OIDCClientNotFound, e:
+        return render_to_response("djangooidc/error.html",
+                                  {"error": e, "debug": settings.DEBUG})
+    except OIDCError, e:
+        return render_to_response("djangooidc/error.html",
+                                  {"error": e, "debug": settings.DEBUG, "op_name": op_name})
+
     query = None
 
     try:
@@ -108,16 +144,25 @@ def authz_cb(request):
             return HttpResponseRedirect(next_page)
         else:
             raise Exception('this login is not valid in this application')
-    except OIDCError as e:
+    except OIDCError, e:
         return render_to_response("djangooidc/error.html",
                                   {"error": e, "callback": query, "debug": settings.DEBUG, "op_name": op_name})
 
 
 def logout(request, next_page=None):
-    if not "op" in request.session.keys():
+    if not "op" in request.session:
         return auth_logout_view(request, next_page)
 
-    client = CLIENTS[request.session["op"]]
+    op_name = request.session["op"]
+
+    try:
+        client = get_proper_client(op_name)
+    except OIDCClientNotFound, e:
+        return render_to_response("djangooidc/error.html",
+                                  {"error": e, "debug": settings.DEBUG})
+    except OIDCError, e:
+        return render_to_response("djangooidc/error.html",
+                                  {"error": e, "debug": settings.DEBUG, "op_name": op_name})
 
     # Only resolve URL for internal code usage
     if next_page is not None:
@@ -127,7 +172,7 @@ def logout(request, next_page=None):
     # Here we determine if a redirection to the app was asked for and is possible.
     if next_page is None and "next" in request.GET.keys():
         next_page = request.GET['next']
-    if next_page is None and "next" in request.session.keys():
+    if next_page is None and "next" in request.session:
         next_page = request.session['next']
     extra_args = {}
     if "post_logout_redirect_uris" in client.registration_response.keys() and len(
@@ -155,7 +200,7 @@ def logout(request, next_page=None):
 
     # Redirect client to the OP logout page
     request_args = None
-    if '_id_token' in request.session.keys():
+    if '_id_token' in request.session:
         request_args = {'id_token_hint': request.session['_id_token']}
     url, body, ht_args, csi = client.request_info(request=EndSessionRequest,
                                                   method='GET',
