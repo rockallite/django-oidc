@@ -174,26 +174,19 @@ def logout(request, next_page=None):
         next_page = request.GET['next']
     if next_page is None and "next" in request.session:
         next_page = request.session['next']
+
     extra_args = {}
-    if "post_logout_redirect_uris" in client.registration_response.keys() and len(
-            client.registration_response["post_logout_redirect_uris"]) > 0:
-        if next_page is not None:
-            # First attempt a direct redirection from OP to next_page
-            urls = [url for url in client.registration_response["post_logout_redirect_uris"] if next_page in url]
-            if len(urls) > 0:
-                extra_args["post_logout_redirect_uri"] = urls[0]
-            else:
-                # It is not possible to directly redirect from the OP to the page that was asked for.
-                # We will try to use the redirection point - if the redirection point URL is registered that is.
-                next_page = resolve_url('openid_logout_cb')
-                urls = [url for url in client.registration_response["post_logout_redirect_uris"] if
-                        next_page in url]
-                if len(urls) > 0:
-                    extra_args["post_logout_redirect_uri"] = urls[0]
-                else:
-                    # Just take the first registered URL as a desperate attempt to come back to the application
-                    extra_args["post_logout_redirect_uri"] = client.registration_response["post_logout_redirect_uris"][
-                        0]
+    urls = client.registration_response.get("post_logout_redirect_uris", None)
+    if urls:
+        # Try to use the registered redirection point
+        logout_cb_url = resolve_url('openid_logout_cb')
+        for url in urls:
+            if logout_cb_url in url:
+                extra_args["post_logout_redirect_uri"] = url
+                break
+        else:
+            # Just take the first registered URL as a desperate attempt to come back to the application
+            extra_args["post_logout_redirect_uri"] = urls[0]
     else:
         # No post_logout_redirect_uris registered at the OP - no redirection to the application is possible anyway
         pass
@@ -207,7 +200,9 @@ def logout(request, next_page=None):
                                                   request_args=request_args,
                                                   extra_args=extra_args,
                                                   state=request.session["state"])
+    # Log out the current user
     auth_logout(request)
+    # Save the next page in the (anonymous) session
     if next_page:
         request.session['next'] = next_page
     return HttpResponseRedirect(bytes(url))
