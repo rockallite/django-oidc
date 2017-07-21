@@ -9,6 +9,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import login as auth_login_view, logout as auth_logout_view
 from django.shortcuts import render_to_response, resolve_url
 from django.http import HttpResponse, HttpResponseRedirect, Http404
+from django.utils.http import is_safe_url
 from django import forms
 from django.template import RequestContext
 from oic.oic.message import EndSessionRequest
@@ -25,9 +26,29 @@ class DynamicProvider(forms.Form):
     hint = forms.CharField(required=True, label='OpenID Connect full login', max_length=250)
 
 
+def is_oidc_redirect_safe_url(request, url):
+    if is_safe_url(url, request.get_host()):
+        return True
+    for host in getattr(settings, 'OIDC_REDIRECT_SAFE_HOSTS', ()):
+        if is_safe_url(url, host):
+            return True
+    return False
+
+
 def openid(request, op_name=None):
     client = None
-    request.session["next"] = request.GET["next"] if "next" in request.GET.keys() else "/"
+
+    if 'next' in request.GET:
+        next_page = request.GET['next']
+        if not is_oidc_redirect_safe_url(request, next_page):
+            next_page = None
+    else:
+        next_page = None
+
+    if not next_page:
+        next_page = resolve_url(settings.LOGIN_REDIRECT_URL)
+    request.session["next"] = next_page
+
     try:
         dyn = settings.OIDC_ALLOW_DYNAMIC_OP or False
     except AttributeError:
@@ -85,7 +106,7 @@ def openid(request, op_name=None):
 
     # Otherwise just render the list+form.
     return render_to_response(template_name,
-                              {"op_list": [i for i in settings.OIDC_PROVIDERS.keys() if i],
+                              {"op_list": [i for i in settings.OIDC_PROVIDERS if i],
                                'dynamic': dyn, 'internal': intl,
                                'form': form, 'ilform': ilform, "next": request.session["next"]},
                               context_instance=RequestContext(request))
@@ -170,10 +191,13 @@ def logout(request, next_page=None):
 
     # User is by default NOT redirected to the app - it stays on an OP page after logout.
     # Here we determine if a redirection to the app was asked for and is possible.
-    if next_page is None and "next" in request.GET.keys():
+    if next_page is None and "next" in request.GET:
         next_page = request.GET['next']
     if next_page is None and "next" in request.session:
         next_page = request.session['next']
+
+    if not is_oidc_redirect_safe_url(request, next_page):
+        next_page = None
 
     extra_args = {}
     urls = client.registration_response.get("post_logout_redirect_uris", None)
