@@ -146,8 +146,6 @@ class OIDCClients(object):
         self.client = {}
         # You can override default client class in OIDC_DEFAULT_CLIENT_CLS setting
         self.client_cls = getattr(config, 'OIDC_DEFAULT_CLIENT_CLS', Client)
-        if isinstance(self.client_cls, six.string_types):
-            self.client_cls = import_string(self.client_cls)
         self.config = config
 
         for key, val in config.OIDC_PROVIDERS.items():
@@ -179,8 +177,9 @@ class OIDCClients(object):
 
         # You can override client class of a specific OP in OIDC_PROVIDERS setting
         client_cls = kwargs.pop('client_cls', None)
-        if client_cls and isinstance(client_cls, six.string_types):
-            client_cls = import_string(client_cls)
+        if client_cls:
+            if isinstance(client_cls, six.string_types):
+                client_cls = import_string(client_cls)
         else:
             client_cls = self.client_cls
 
