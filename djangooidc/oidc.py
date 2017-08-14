@@ -156,6 +156,16 @@ class OIDCClients(object):
             else:
                 self.client[key] = self.create_client(**val)
 
+    @property
+    def client_cls(self):
+        if isinstance(self._client_cls, six.string_types):
+            self._client_cls = import_string(self._client_cls)
+        return self._client_cls
+
+    @client_cls.setter
+    def client_cls(self, value):
+        self._client_cls = value or Client
+
     def create_client(self, userid="", **kwargs):
         """
         Do an instantiation of a client instance
@@ -168,9 +178,11 @@ class OIDCClients(object):
         """
 
         # You can override client class of a specific OP in OIDC_PROVIDERS setting
-        client_cls = kwargs.pop('client_cls', self.client_cls)
-        if isinstance(client_cls, six.string_types):
+        client_cls = kwargs.pop('client_cls', None)
+        if client_cls and isinstance(client_cls, six.string_types):
             client_cls = import_string(client_cls)
+        else:
+            client_cls = self.client_cls
 
         _key_set = set(kwargs.keys())
         args = {}
