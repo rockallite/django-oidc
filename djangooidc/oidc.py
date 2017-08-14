@@ -1,6 +1,8 @@
 # coding: utf-8
 
 from django.conf import settings
+from django.utils import six
+from django.utils.module_loading import import_string
 from oic.exception import MissingAttribute
 from oic import oic, rndstr
 from oic.oauth2 import ErrorResponse
@@ -142,7 +144,10 @@ class OIDCClients(object):
         :return:
         """
         self.client = {}
-        self.client_cls = Client
+        # You can override default client class in OIDC_DEFAULT_CLIENT_CLS setting
+        self.client_cls = getattr(config, 'OIDC_DEFAULT_CLIENT_CLS', Client)
+        if isinstance(self.client_cls, six.string_types):
+            self.client_cls = import_string(self.client_cls)
         self.config = config
 
         for key, val in config.OIDC_PROVIDERS.items():
@@ -162,6 +167,11 @@ class OIDCClients(object):
         :return: client instance
         """
 
+        # You can override client class of a specific OP in OIDC_PROVIDERS setting
+        client_cls = kwargs.pop('client_cls', self.client_cls)
+        if isinstance(client_cls, six.string_types):
+            client_cls = import_string(client_cls)
+
         _key_set = set(kwargs.keys())
         args = {}
         for param in ["verify_ssl"]:
@@ -177,8 +187,8 @@ class OIDCClients(object):
         except:
             verify_ssl = True
 
-        client = self.client_cls(client_authn_method=CLIENT_AUTHN_METHOD,
-                                 behaviour=kwargs["behaviour"], verify_ssl=verify_ssl, **args)
+        client = client_cls(client_authn_method=CLIENT_AUTHN_METHOD,
+                            behaviour=kwargs["behaviour"], verify_ssl=verify_ssl, **args)
 
         # The behaviour parameter is not significant for the election process
         _key_set.discard("behaviour")
