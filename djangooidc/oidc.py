@@ -287,7 +287,7 @@ class OIDCClients(object):
 class LazyOIDCClients(LazyObject):
     def __init__(self, config):
         super(LazyOIDCClients, self).__init__()
-        self.config = config
+        self.__dict__['config'] = config
 
     def __copy__(self):
         if self._wrapped is empty:
