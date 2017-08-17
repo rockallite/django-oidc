@@ -14,11 +14,11 @@ from django import forms
 from django.template import RequestContext
 from oic.oic.message import EndSessionRequest
 
-from djangooidc.oidc import OIDCClients, OIDCError
+from djangooidc.oidc import LazyOIDCClients, OIDCError
 
 logger = logging.getLogger(__name__)
 
-CLIENTS = OIDCClients(settings)
+CLIENTS = LazyOIDCClients(settings)
 
 
 # Step 1: provider choice (form). Also - Step 2: redirect to OP. (Step 3 is OP business.)

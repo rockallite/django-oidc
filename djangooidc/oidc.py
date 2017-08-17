@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.utils import six
+from django.utils.functional import LazyObject
 from django.utils.module_loading import import_string
 from oic.exception import MissingAttribute
 from oic import oic, rndstr
@@ -282,3 +283,29 @@ class OIDCClients(object):
     def keys(self):
         return self.client.keys()
 
+
+class LazyOIDCClients(LazyObject):
+    def __init__(self, config):
+        super(LazyOIDCClients, self).__init__()
+        self.config = config
+
+    def __copy__(self):
+        if self._wrapped is empty:
+            # If uninitialized, copy the wrapper. Use type(self), not
+            # self.__class__, because the latter is proxied.
+            return type(self)(self.config)
+        else:
+            # If initialized, return a copy of the wrapped object.
+            return copy.copy(self._wrapped)
+
+    def __deepcopy__(self, memo):
+        if self._wrapped is empty:
+            # We have to use type(self), not self.__class__, because the
+            # latter is proxied.
+            result = type(self)(copy.deepcopy(self.config, memo))
+            memo[id(self)] = result
+            return result
+        return copy.deepcopy(self._wrapped, memo)
+
+    def _setup(self):
+        self._wrapped = OIDCClients(self.config)
