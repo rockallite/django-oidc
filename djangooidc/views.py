@@ -4,7 +4,7 @@ import logging
 from urlparse import parse_qs
 
 from django.conf import settings
-from django.contrib.auth import logout as auth_logout, authenticate, login
+from django.contrib.auth import logout as auth_logout, authenticate, login, SESSION_KEY, HASH_SESSION_KEY
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import login as auth_login_view, logout as auth_logout_view
 from django.shortcuts import render_to_response, resolve_url
@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 CLIENTS = LazyOIDCClients(settings)
 
+VIEWS_RELATED_SESSION_KEYS = ("op", "dyn_op_hint", "userinfo")
+
 
 # Step 1: provider choice (form). Also - Step 2: redirect to OP. (Step 3 is OP business.)
 class DynamicProvider(forms.Form):
@@ -33,6 +35,12 @@ def is_oidc_redirect_safe_url(request, url):
         if is_safe_url(url, host):
             return True
     return False
+
+
+def get_views_related_session_data(session):
+    return {
+        k: session[k] for k in VIEWS_RELATED_SESSION_KEYS if k in session
+    }
 
 
 def openid(request, op_name=None):
@@ -140,7 +148,12 @@ def get_proper_client(op_name):
 
 # Step 4: analyze the token returned by the OP
 def authz_cb(request):
-    op_name = request.session["op"]
+    try:
+        op_name = request.session["op"]
+    except KeyError:
+        logger.error('could not get "op" key from request session')
+        return render_to_response("djangooidc/error.html",
+                                  {"error": e, "debug": settings.DEBUG})
 
     try:
         client = get_proper_client(op_name)
@@ -151,21 +164,52 @@ def authz_cb(request):
         return render_to_response("djangooidc/error.html",
                                   {"error": e, "debug": settings.DEBUG, "op_name": op_name})
 
-    query = None
-
+    query = parse_qs(request.META['QUERY_STRING'])
+    userinfo = None
     try:
-        query = parse_qs(request.META['QUERY_STRING'])
         userinfo = client.callback(query, request.session)
         request.session["userinfo"] = userinfo
         user = authenticate(**userinfo)
         if user:
-            login(request, user)
-            # Clear next page in session
+            # Check whether the current session represent the same user (and with the same session_auth_hash).
+            # If true, skip login process (which unnecessarily rotates CSRF token and sends login signal).
+            need_login = False
+            session_will_flush = False
+            if SESSION_KEY in request.session:
+                new_session_key = user._meta.pk.value_to_string(user)
+                if request.session[SESSION_KEY] != new_session_key:
+                    need_login = True
+                    session_will_flush = True
+                else:
+                    new_session_auth_hash = ''
+                    if hasattr(user, 'get_session_auth_hash'):
+                        new_session_auth_hash = user.get_session_auth_hash()
+                    if new_session_auth_hash and request.session[HASH_SESSION_KEY] != new_session_auth_hash:
+                        need_login = True
+                        session_will_flush = True
+            else:
+                # Session won't flush for anonymous user, only cycling key
+                need_login = True
+
+            # Get and clear next page in session anyway
             next_page = request.session.pop("next", "/")
+
+            if need_login:
+                if session_will_flush:
+                    # Keep a copy of OIDC login related session data ("op", etc) before flushing
+                    old_session_data = get_views_related_session_data(request.session)
+                    old_session_data.update(client.get_related_session_data(request.session))
+                # Log user in
+                login(request, user)
+                if session_will_flush:
+                    # Restore OIDC login related session data from the copy
+                    request.session.update(old_session_data)
+
             return HttpResponseRedirect(next_page)
         else:
-            raise Exception('this login is not valid in this application')
+            raise OIDCError('this login is not valid in this application, user not authenticated')
     except OIDCError, e:
+        logger.exception('failed to authenticate user, userinfo: %r', userinfo)
         return render_to_response("djangooidc/error.html",
                                   {"error": e, "callback": query, "debug": settings.DEBUG, "op_name": op_name})
 
@@ -179,9 +223,11 @@ def logout(request, next_page=None):
     try:
         client = get_proper_client(op_name)
     except OIDCClientNotFound, e:
+        logger.exception('lgout() error:')
         return render_to_response("djangooidc/error.html",
                                   {"error": e, "debug": settings.DEBUG})
     except OIDCError, e:
+        logger.exception('lgout() error:')
         return render_to_response("djangooidc/error.html",
                                   {"error": e, "debug": settings.DEBUG, "op_name": op_name})
 

@@ -27,6 +27,10 @@ class OIDCError(Exception):
 
 
 class Client(oic.Client):
+    related_session_keys = (
+        "state", "nonce", "id_token", "_id_token", "access_token", "refresh_token",
+    )
+
     def __init__(self, client_id=None, ca_certs=None,
                  client_prefs=None, client_authn_method=None, keyjar=None,
                  verify_ssl=True, behaviour=None):
@@ -34,6 +38,11 @@ class Client(oic.Client):
                             client_authn_method, keyjar, verify_ssl)
         if behaviour:
             self.behaviour = behaviour
+
+    def get_related_session_data(self, session):
+        return {
+            k: session[k] for k in self.related_session_keys if k in session
+        }
 
     def create_authn_request(self, session, acr_value=None, **kwargs):
         session["state"] = rndstr()
