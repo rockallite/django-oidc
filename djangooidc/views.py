@@ -151,9 +151,10 @@ def authz_cb(request):
     try:
         op_name = request.session["op"]
     except KeyError:
-        logger.error('could not get "op" key from request session')
+        err_msg = 'missing "op" key in request session'
+        logger.error(err_msg)
         return render_to_response("djangooidc/error.html",
-                                  {"error": e, "debug": settings.DEBUG})
+                                  {"error": err_msg, "debug": settings.DEBUG})
 
     try:
         client = get_proper_client(op_name)
